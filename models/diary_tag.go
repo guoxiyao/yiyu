@@ -2,6 +2,8 @@ package models
 
 import (
 	"gorm.io/gorm"
+	"log"
+	"strconv"
 )
 
 // DiaryTag 定义日记和标签的多对多关联数据模型
@@ -9,13 +11,12 @@ type DiaryTag struct {
 	gorm.Model
 	DiaryID uint `gorm:"not null;index:idx_diary_tag_diary_id,unique" json:"diary_id"`
 	TagID   uint `gorm:"not null;index:idx_diary_tag_tag_id,unique" json:"tag_id"`
-	/*
-		Diary   Diary `gorm:"foreignKey:DiaryID"` // 如果需要自动加载日记信息
-		Tag     Tag   `gorm:"foreignKey:TagID"`   // 如果需要自动加载标签信息
-	*/
+
+	Diary Diary `gorm:"foreignKey:DiaryID"` // 如果需要自动加载日记信息
+	Tag   Tag   `gorm:"foreignKey:TagID"`   // 如果需要自动加载标签信息
+
 }
 
-/*
 // BeforeDelete 删除 DiaryTag 之前的钩子
 // 当 Diary 或 Tag 被删除时，自动删除 DiaryTag 中的对应记录
 func (dt *DiaryTag) BeforeDelete(*gorm.DB) error {
@@ -39,4 +40,3 @@ func (dt *DiaryTag) Validate() error {
 }
 
 // ... 其他可能的方法 ...
-*/

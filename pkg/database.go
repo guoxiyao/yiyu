@@ -1,4 +1,4 @@
-/*package pkg
+package pkg
 
 import (
 	"awesomeProject1/config"
@@ -38,35 +38,3 @@ func Connect(dbConfig config.DatabaseConfig) (*gorm.DB, error) {
 	return db, nil
 
 }
-*/
-package pkg
-
-import (
-	"awesomeProject1/config"
-	"awesomeProject1/models" // 替换为你的项目路径
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"log"
-)
-
-// Connect 连接到数据库并执行迁移
-func Connect(dbConfig config.DatabaseConfig) (*gorm.DB, error) {
-	// 构建数据库连接字符串（DSN）
-	dsn := dbConfig.FormatDSN()
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Printf("Error connecting to the database: %v", err)
-		return nil, err
-	}
-
-	// 执行数据库迁移
-	if err := models.MigrateAll(db); err != nil {
-		log.Printf("Error migrating the database: %v", err)
-		return nil, err
-	}
-
-	log.Println("Database connection established and migration completed successfully")
-	return db, nil
-}
-
-// ... 其他函数和逻辑 ...
