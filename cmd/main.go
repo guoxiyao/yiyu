@@ -9,20 +9,25 @@ import (
 
 func main() {
 	// 加载配置
-	cfg := config.NewDatabaseConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
 
 	// 连接数据库
-	_, err := pkg.Connect(cfg)
+	db, err := pkg.Connect(cfg)
 	if err != nil {
 		log.Fatalf("failed to connect to the database: %v", err)
 	}
+	//不加关闭会怎样
+	defer db.Close()
 
 	// 初始化路由器
-	r := router.SetupRouter()
+	appRouter := router.NewAppRouter(db)
 
 	// 启动服务器
 	log.Printf("Server is running on :8080")
-	if err := r.Run(":8080"); err != nil {
+	if err := appRouter.Run(":8080"); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
 }

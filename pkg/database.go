@@ -2,39 +2,57 @@ package pkg
 
 import (
 	"awesomeProject1/config"
-	"awesomeProject1/models"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"log"
+	"time"
 )
 
-// Connect 连接到数据库并返回 *gorm.DB 和 error
-func Connect(dbConfig config.DatabaseConfig) (*gorm.DB, error) {
-	// 构建数据库连接字符串（DSN）
-	dsn := dbConfig.User + ":" + dbConfig.Password + "@tcp(" + dbConfig.Host + ":" + dbConfig.Port + ")/" + dbConfig.DBName + "?charset=utf8mb4&parseTime=True&loc=Local"
+import (
+	"gorm.io/driver/mysql"
+	"os"
+)
 
-	// 配置 GORM 并打开数据库连接
+// Connect 连接到数据库并返回 *gorm.DB 实例
+func Connect(dbConfig *config.DatabaseConfig) (*gorm.DB, error) {
+	dsn := dbConfig.User + ":" + dbConfig.Password + "@tcp(" + dbConfig.Host + ":" + dbConfig.Port + ")/" + dbConfig.Name + "?charset=utf8mb4&parseTime=True&loc=Local"
+
+	// 创建一个新的 GORM 实例
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info), // 设置日志模式
+		// 设置自动迁移模式
+		//AutomaticMigrations: false,
+		// 设置默认的事务超时时间
+		NowFunc: func() time.Time { return time.Now() },
+		// 设置日志记录器
+		Logger: logger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags), // 使用标准库的Logger
+			logger.Config{
+				LogLevel:      logger.Info,            // 设置日志级别
+				SlowThreshold: 100 * time.Millisecond, // 设置慢查询阈值
+				Colorful:      true,                   // 是否彩色输出
+			},
+		),
 	})
 	if err != nil {
-		log.Printf("Error connecting to the database: %v", err)
 		return nil, err
 	}
 
-	// 执行数据库迁移
-	if err := db.Migrator().AutoMigrate(
-		&models.User{},
-		&models.Diary{},
-		&models.Tag{},      // 迁移 Tag 模型
-		&models.DiaryTag{}, // 迁移 DiaryTag 模型
-	); err != nil {
-		log.Printf("Error migrating the database: %v", err)
+	// 这里可以添加自动迁移代码，例如 db.Migrate(...)
+	// db.AutoMigrate(yourModelTypes...)
+
+	// 设置连接池参数
+	//db.Interrupt()
+	sqlDB, err := db.DB()
+	if err != nil {
 		return nil, err
 	}
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(10 * time.Minute)
 
-	log.Println("Database connection established successfully")
+	//db.Continue()
+
 	return db, nil
-
 }
+
+// pkg/database.go
