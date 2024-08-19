@@ -13,7 +13,7 @@ type User struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	// 假删除字段
-	IsDeleted bool `gorm:"default:false"`
+	//IsDeleted bool `gorm:"default:false"`
 }
 
 // CheckPassword 检查密码是否正确

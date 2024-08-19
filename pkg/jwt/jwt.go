@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"errors"
 	"github.com/dgrijalva/jwt-go"
 	"time"
 )
@@ -25,4 +26,23 @@ func GenerateToken(userID uint, phoneNumber string) (string, error) {
 	})
 
 	return token.SignedString(key)
+}
+
+// VerifyToken 校验 JWT 令牌
+func VerifyToken(tokenString string) (*CustomClaims, error) {
+	key := []byte("your_jwt_secret_key")
+
+	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return key, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, errors.New("invalid token")
 }

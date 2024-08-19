@@ -22,8 +22,14 @@ func NewAppRouter(db *gorm.DB) *AppRouter {
 
 	// 初始化控制器并设置路由
 	controllers.NewDiaryController(db).Routes(r)
-	// controllers.NewUserController(db).Routes(r)
+	//controllers.NewUserController(db).Routes(r)
+	controllers.NewTagController(db).Routes(r)
 	// ... 其他控制器的注册 ...
+
+	user := r.Group("/diary")
+	{
+		user.POST("/login", controllers.NewUserController(db).Login)
+	}
 
 	return &AppRouter{
 		DB:     db,

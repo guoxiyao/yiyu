@@ -8,6 +8,9 @@ import (
 )
 
 func main() {
+
+	// 初始化 Gin 引擎
+	//r := gin.Default()
 	// 加载配置
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -19,11 +22,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to connect to the database: %v", err)
 	}
-	//不加关闭会怎样
-	defer db.Close()
+
+	//defer db.Close()
 
 	// 初始化路由器
 	appRouter := router.NewAppRouter(db)
+
+	//创建 UserController 实例
+	//userCtrl := controllers.NewUserController(db)
+
+	// 注册 UserController 路由
+
+	//userCtrl.Routes(r)
 
 	// 启动服务器
 	log.Printf("Server is running on :8080")

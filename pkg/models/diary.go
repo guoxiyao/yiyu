@@ -12,10 +12,12 @@ type Diary struct {
 	Content   string    `gorm:"type:text"` // 日记内容
 	CreatedAt time.Time // 创建时间
 	UpdatedAt time.Time // 更新时间
+
 	// 假删除字段
-	IsDeleted bool `gorm:"default:false"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+	//IsDeleted bool `gorm:"default:false"`
 	// 关联用户
-	User User `gorm:"foreignKey:UserID"`
+	User User `gorm:"foreignKey:ID"`
 	// 多对多关联标签
 	Tags []Tag `gorm:"many2many:diary_tags"`
 }

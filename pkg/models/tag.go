@@ -8,13 +8,14 @@ import (
 // Tag 代表标签的数据库模型
 type Tag struct {
 	gorm.Model
-	Name      string `gorm:"unique;not null"` // 标签名称，需要唯一
-	UserID    uint   `gorm:"not null"`        // 关联的用户ID
+	Name string `gorm:"unique;not null"` // 标签名称，需要唯一
+	//ID        uint   `gorm:"not null"`        // 关联的用户ID
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	IsDeleted bool `gorm:"default:false"` // 假删除字段
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+	//IsDeleted bool `gorm:"default:false"` // 假删除字段
 	// 其他字段，如关联的日记等...
-	// Diaries    []Diary   `gorm:"many2many:diary_tags"` // 多对多关系
+	Diaries []Diary `gorm:"many2many:diary_tags"` // 多对多关系
 }
 
 /*

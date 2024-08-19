@@ -3,7 +3,9 @@ package controllers
 import (
 	"awesomeProject1/pkg/jwt"
 	"awesomeProject1/pkg/models"
+	"errors"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"net/http"
 )
@@ -13,51 +15,61 @@ type UserController struct {
 	DB *gorm.DB
 }
 
-// NewUserController 创建用户控制器实例
-func NewUserController(db *gorm.DB) *UserController {
-	return &UserController{DB: db}
-}
-
-// Register 用户注册
-func (ctrl *UserController) Register(c *gin.Context) {
-	var newUser models.User
-	if err := c.ShouldBindJSON(&newUser); err == nil {
-		//if err := newUser.Validate(ctrl.DB); err != nil {
-		//	c.JSON(http.StatusConflict, gin.H{"error": "Phone number already registered"})
-		//	return
-		//}
-		// 这里应该添加密码加密逻辑
-		newUser.Password = "encrypted_password" // 用实际的加密密码替换
-		result := ctrl.DB.Create(&newUser)
-		if result.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
-		} else {
-			c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully"})
-		}
-	} else {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
-	}
-}
-
-// Login 用户登录
+// Login 用户注册或登录
 func (ctrl *UserController) Login(c *gin.Context) {
-	var loginUser models.User
-	if err := c.ShouldBindJSON(&loginUser); err == nil {
-		var user models.User
-		result := ctrl.DB.Where("phone_number = ? AND is_deleted = false", loginUser.PhoneNumber).First(&user)
-		if result.Error == nil && user.CheckPassword(loginUser.Password) {
-			// 登录成功，生成JWT令牌
-			token, err := jwt.GenerateToken(user.ID, user.PhoneNumber) // 确保您接收返回的令牌和错误
+	var credentials models.User
+	if err := c.ShouldBindJSON(&credentials); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "0", "msg": "Invalid input"})
+		return
+	}
+
+	// 检查用户是否存在
+	var user models.User
+	result := ctrl.DB.Where("phone_number = ?", credentials.PhoneNumber).First(&user)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			// 用户不存在，执行注册逻辑
+			hashPassword, err := bcrypt.GenerateFromPassword([]byte(credentials.Password), bcrypt.DefaultCost)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-			} else {
-				// 确保您发送了生成的令牌
-				c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
+				c.JSON(http.StatusInternalServerError, gin.H{"status": "0", "msg": "Failed to encrypt password"})
+				return
+			}
+			user.PhoneNumber = credentials.PhoneNumber
+			user.Password = string(hashPassword)
+			// 保存新用户
+			createResult := ctrl.DB.Create(&user)
+			if createResult.Error != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": "0", "msg": "Failed to register user"})
+				return
 			}
 		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid phone number or password"})
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "0", "msg": "Database error"})
+			return
 		}
 	} else {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		// 用户存在，执行登录逻辑
+		err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(credentials.Password))
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": "0", "msg": "Invalid phone number or password"})
+			return
+		}
 	}
+
+	// 登录成功，生成JWT令牌
+	token, err := jwt.GenerateToken(user.ID, user.PhoneNumber)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "0", "msg": "Failed to generate token"})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"status": "1", "msg": "注册或登录成功！", "token": token})
+	}
+}
+
+// 确保在 UserController 的 Routes 方法中注册 Login 路由
+func (ctrl *UserController) Routes(r *gin.Engine) {
+	r.POST("/diary/login", ctrl.Login)
+}
+
+// NewUserController 创建 UserController 的新实例
+func NewUserController(db *gorm.DB) *UserController {
+	return &UserController{DB: db}
 }

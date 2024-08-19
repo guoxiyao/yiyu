@@ -25,6 +25,14 @@ func LoadConfig() (*DatabaseConfig, error) {
 		Password: os.Getenv("DB_PASSWORD"),
 		Name:     os.Getenv("DB_NAME"),
 	}
+	//dbConfig := &DatabaseConfig{
+	//	Host:     "127.0.0.1",
+	//	Port:     "3306",
+	//	User:     "root",
+	//	Password: "123456",
+	//	Name:     "db240814",
+	//}
+	//
 
 	// 检查必要配置是否已设置
 	if dbConfig.Host == "" || dbConfig.User == "" || dbConfig.Name == "" {
