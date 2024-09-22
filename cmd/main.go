@@ -4,13 +4,15 @@ import (
 	"awesomeProject1/config"
 	"awesomeProject1/pkg"
 	"awesomeProject1/router"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"log"
 )
 
 func main() {
+	//实例化gin引擎
+	r := gin.New()
 
-	// 初始化 Gin 引擎
-	//r := gin.Default()
 	// 加载配置
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -23,17 +25,19 @@ func main() {
 		log.Fatalf("failed to connect to the database: %v", err)
 	}
 
-	//defer db.Close()
-
 	// 初始化路由器
 	appRouter := router.NewAppRouter(db)
 
-	//创建 UserController 实例
-	//userCtrl := controllers.NewUserController(db)
+	// 配置 CORS
+	config := cors.Config{
+		AllowOrigins:  []string{"*"}, // 允许所有来源
+		AllowMethods:  []string{"PUT", "PATCH", "GET", "POST"},
+		AllowHeaders:  []string{"Origin"},
+		ExposeHeaders: []string{"Content-Length", "Authorization"}, // 暴露的头部
+	}
 
-	// 注册 UserController 路由
-
-	//userCtrl.Routes(r)
+	// 应用 CORS 中间件
+	r.Use(cors.New(config))
 
 	// 启动服务器
 	log.Printf("Server is running on :8080")

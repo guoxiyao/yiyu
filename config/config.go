@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"os"
-	"strconv"
 )
 
 // DatabaseConfig 数据库配置结构
@@ -25,27 +24,11 @@ func LoadConfig() (*DatabaseConfig, error) {
 		Password: os.Getenv("DB_PASSWORD"),
 		Name:     os.Getenv("DB_NAME"),
 	}
-	//dbConfig := &DatabaseConfig{
-	//	Host:     "127.0.0.1",
-	//	Port:     "3306",
-	//	User:     "root",
-	//	Password: "123456",
-	//	Name:     "db240814",
-	//}
-	//
 
 	// 检查必要配置是否已设置
 	if dbConfig.Host == "" || dbConfig.User == "" || dbConfig.Name == "" {
 		return nil, ErrConfigMissing
 	}
-
-	// 将端口转换为整数
-	_, err := strconv.Atoi(dbConfig.Port)
-	if err != nil {
-		return nil, err
-	}
-
-	// 这里可以添加更多配置验证逻辑
 
 	return dbConfig, nil
 }

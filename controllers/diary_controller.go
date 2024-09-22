@@ -1,16 +1,14 @@
-// file: diary_controller.go
 package controllers
 
 import (
 	"awesomeProject1/middleware"
 	"awesomeProject1/pkg/models"
+	"awesomeProject1/response"
 	"errors"
-	"strconv"
-	"time"
-
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"net/http"
+	"math"
+	"time"
 )
 
 // DiaryController 处理日记相关的请求
@@ -46,21 +44,20 @@ func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
 
 	// 绑定请求中的 JSON 数据到 diary 变量中
 	if err := c.ShouldBindJSON(&diary); err != nil {
-		// 如果绑定 JSON 数据失败，返回错误信息和 HTTP 400 状态码
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input", "details": err.Error()})
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的输入"))
 		return
 	}
 
 	// 检查日记内容是否为空
 	if diary.Content == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Diary content cannot be empty"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "日记内容不能为空"))
 		return
 	}
 
 	// 检查 user_id 是否在 users 表中存在
 	var user models.User
 	if err := ctrl.DB.Where("id = ?", userID).First(&user).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User not found"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "用户未找到"))
 		return
 	}
 	diary.UserID = userID
@@ -70,7 +67,7 @@ func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
 	for _, tag := range diary.Tags {
 		var tag1 models.Tag
 		if err := ctrl.DB.First(&tag1, "name = ?", tag.Name).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Tag not found"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到"))
 			return
 		}
 		tags = append(tags, tag1)
@@ -84,124 +81,107 @@ func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
 	// 检查是否有错误发生
 	if result.Error != nil {
 		// 如果有错误，返回错误信息和 HTTP 500 状态码
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+
+		response.WriteJSON(c, response.NewResponse(2, nil, "创建日记失败"))
 		return
 	}
 
 	// 如果创建成功，返回创建的日记和 HTTP 201 状态码
-	c.JSON(http.StatusCreated, gin.H{"diary": diary})
+	response.WriteJSON(c, response.NewResponse(0, diary, "日记创建成功"))
 }
 
 // GetDiaries 获取用户的日记列表
 func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
-	//用户id
 	userIDAny, _ := c.Get("user_id")
 	userID := userIDAny.(uint)
-	pageStr, ok := c.GetQuery("page")
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
+	// QueryParams 用于绑定查询参数的结构体
+	type QueryParams struct {
+		Page      int
+		PageSize  int
+		SortField string
+		SortBy    string
+		QueryType string
+		Tag       string
+		Content   string
+		StratTime string
+		EndTime   string
+	}
+
+	// 绑定查询参数
+	var queryParams QueryParams
+	if err := c.ShouldBindQuery(&queryParams); err != nil {
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的查询参数"))
 		return
 	}
-	pageSizeStr, ok := c.GetQuery("pageSize")
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page size"})
+
+	//验证分页参数
+	if queryParams.Page < 1 || queryParams.PageSize < 1 {
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的页码或页面大小"))
 		return
 	}
-	page, err := strconv.Atoi(pageStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
+	// 验证排序参数
+	if queryParams.SortField != "created_at" && queryParams.SortField != "updated_at" {
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的排序字段"))
 		return
 	}
-	pageSize, err := strconv.Atoi(pageSizeStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page size"})
+	if queryParams.SortBy != "ASC" && queryParams.SortBy != "DESC" {
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的排序顺序"))
 		return
 	}
-	sortField, ok := c.GetQuery("sortField")
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sort field"})
-		return
-	}
-	if sortField != "created_at" && sortField != "updated_at" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sort field"})
-	}
-	sortBy, ok := c.GetQuery("sortBy")
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sort order"})
-		return
-	}
-	if sortBy != "ASC" && sortBy != "DESC" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sort order"})
-	}
-	queryType, ok := c.GetQuery("queryType")
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query type"})
-		return
-	}
+	//构建查询
 	var result *gorm.DB
-	if queryType == "tag" {
-		//按标签查询
-		tag, ok := c.GetQuery("tag")
-		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tag"})
-		}
-		//查询标签的id
+	switch queryParams.QueryType {
+	case "tag":
+		// 按标签查询
 		var tagData models.Tag
-		tx := ctrl.DB.Where("name = ?", tag).First(&tagData)
-		if tx.Error != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Tag not found"})
+		if err := ctrl.DB.Where("name = ?", queryParams.Tag).First(&tagData).Error; err != nil {
+			response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到"))
 			return
 		}
-		//通过id进行筛选
+		// 通过id进行筛选
 		result = ctrl.DB.Joins("JOIN diary_tags ON diary_tags.diary_id = diaries.id").
 			Where("diary_tags.tag_id = ?", tagData.ID)
-	} else if queryType == "content" {
-		//按内容模糊查询
-		content, ok := c.GetQuery("content")
-		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid content"})
-		}
-		result = ctrl.DB.Where("content LIKE ?", "%"+content+"%")
-	} else if queryType == "time" {
-		//按创建时间范围查询
-		stratTime, ok := c.GetQuery("stratTime")
-		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid stratTime"})
-		}
-		endTime, ok := c.GetQuery("endTime")
-		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid endTime"})
-		}
 
-		startTimeNew, err := time.Parse("2006-01-02/15:04:05", stratTime)
+	case "content":
+		// 按内容模糊查询
+		result = ctrl.DB.Where("content LIKE ?", "%"+queryParams.Content+"%")
+
+	case "time":
+		// 按创建时间范围查询
+		startTime, err := time.Parse("2006-01-02/15:04:05", queryParams.StratTime)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid stratTime"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "无效的开始时间"))
 			return
 		}
-		endTimeNew, err2 := time.Parse("2006-01-02/15:04:05", endTime)
-		if err2 != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid endTime"})
+		endTime, err := time.Parse("2006-01-02/15:04:05", queryParams.EndTime)
+		if err != nil {
+			response.WriteJSON(c, response.NewResponse(1, nil, "无效的结束时间"))
 			return
 		}
-		result = ctrl.DB.Where("created_at BETWEEN ? AND ?", startTimeNew.Format("2006-01-02 15:04:05"), endTimeNew.Format("2006-01-02 15:04:05"))
-	} else {
-		//其他类型返回错误
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query type"})
+		result = ctrl.DB.Where("created_at BETWEEN ? AND ?", startTime, endTime)
+
+	default:
+		// 其他类型返回错误
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的查询类型"))
 		return
 	}
 
-	//校验参数
-	if page < 1 || pageSize < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number or page size"})
-	}
-	offset := (page - 1) * pageSize
-	// 实现获取日记列表逻辑
-	var diaries []models.Diary // 假设 models.Diary 是您的日记模型
-	result = result.Where("user_id = ?", userID).Preload("Tags").Offset(offset).Limit(pageSize).Order(sortField + " " + sortBy).Find(&diaries)
+	// 应用分页和排序
+	offset := (queryParams.Page - 1) * queryParams.PageSize
+	var diaries []models.Diary
+	var count int64
+	result = ctrl.DB.Model(&models.Diary{}).Where("user_id = ?", userID).Count(&count)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "获取日记总数失败"))
+		return
+	}
+	result = ctrl.DB.Where("user_id = ?", userID).Preload("Tags").Offset(offset).Limit(queryParams.PageSize).Order(queryParams.SortField + " " + queryParams.SortBy).Find(&diaries)
+	if result.Error != nil {
+		response.WriteJSON(c, response.NewResponse(2, nil, "获取日记列表失败"))
 	} else {
-		c.JSON(http.StatusOK, gin.H{"diaries": diaries})
+		// 计算总页数
+		totalPages := int(math.Ceil(float64(count) / float64(queryParams.PageSize)))
+		response.WriteJSON(c, response.NewResponse(0, gin.H{"diaries": diaries, "currentPage": queryParams.Page, "totalPages": totalPages}, "获取日记列表成功"))
 	}
 }
 
@@ -209,7 +189,7 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 func (ctrl *DiaryController) UpdateDiary(c *gin.Context) {
 	diaryID := c.Param("id")
 	if diaryID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing diary ID"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "缺少日记ID"))
 		return
 	}
 	//用户id
@@ -218,7 +198,7 @@ func (ctrl *DiaryController) UpdateDiary(c *gin.Context) {
 
 	var update models.Diary
 	if err := c.BindJSON(&update); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid update data"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的更新数据"))
 		return
 	}
 
@@ -226,10 +206,10 @@ func (ctrl *DiaryController) UpdateDiary(c *gin.Context) {
 	result := ctrl.DB.First(&diary, "id = ? AND user_id = ?", diaryID, userID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Diary not found"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "日记未找到"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "更新日记时数据库错误"))
 		return
 	}
 
@@ -238,7 +218,7 @@ func (ctrl *DiaryController) UpdateDiary(c *gin.Context) {
 	for _, tag := range update.Tags {
 		var tag1 models.Tag
 		if err := ctrl.DB.First(&tag1, "name = ?", tag.Name).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Tag not found"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到"))
 			return
 		}
 		tags = append(tags, tag1)
@@ -251,23 +231,23 @@ func (ctrl *DiaryController) UpdateDiary(c *gin.Context) {
 
 	result = ctrl.DB.Save(&diary)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "更新日记失败"))
 		return
 	}
 	//更新标签
 	err := ctrl.DB.Model(&diary).Association("Tags").Replace(&tags)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update label"})
+		response.WriteJSON(c, response.NewResponse(2, nil, "更新标签失败"))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"diary": diary})
+	response.WriteJSON(c, response.NewResponse(0, diary, "日记更新成功"))
 }
 
 // GetDiary 根据ID获取单个日记
 func (ctrl *DiaryController) GetDiary(c *gin.Context) {
 	diaryID := c.Param("id") // 从URL参数中获取日记ID
 	if diaryID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing diary ID"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "缺少日记ID"))
 		return
 	}
 	//用户id
@@ -278,22 +258,23 @@ func (ctrl *DiaryController) GetDiary(c *gin.Context) {
 	result := ctrl.DB.Where("user_id = ?", userID).Preload("Tags").Take(&diary, diaryID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Diary not found"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "日记未找到"))
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+			response.WriteJSON(c, response.NewResponse(2, nil, "获取日记时数据库错误"))
 		}
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"diary": diary})
+	response.WriteJSON(c, response.NewResponse(0, diary, "获取日记成功"))
 }
 
 // DeleteDiary 软删除日记（标记为已删除）
 func (ctrl *DiaryController) DeleteDiary(c *gin.Context) {
 	diaryID := c.Param("id")
 	if diaryID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing diary ID"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "缺少日记ID"))
 		return
 	}
+
 	userIDAny, _ := c.Get("user_id")
 	userID := userIDAny.(uint)
 
@@ -302,20 +283,20 @@ func (ctrl *DiaryController) DeleteDiary(c *gin.Context) {
 	result := ctrl.DB.Where("id = ? AND user_id = ? AND deleted_at IS NULL", diaryID, userID).First(&diary)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Diary not found or already deleted"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "日记未找到或已被删除"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "删除日记时数据库错误"))
 		return
 	}
 
 	// 执行软删除
 	updateResult := ctrl.DB.Model(&diary).Update("deleted_at", time.Now())
 	if updateResult.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": updateResult.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "删除日记失败"))
 	} else if updateResult.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Diary not found or already deleted"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "日记未找到或已被删除"))
 	} else {
-		c.JSON(http.StatusOK, gin.H{"message": "Diary deleted"})
+		response.WriteJSON(c, response.NewResponse(0, nil, "日记删除成功"))
 	}
 }

@@ -3,10 +3,11 @@ package controllers
 import (
 	"awesomeProject1/middleware"
 	"awesomeProject1/pkg/models"
+	"awesomeProject1/response"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"net/http"
 	"strconv"
+	"time"
 )
 
 // TagController 处理标签相关的请求
@@ -36,24 +37,20 @@ func (ctrl *TagController) Routes(r *gin.Engine) {
 func (ctrl *TagController) CreateTag(c *gin.Context) {
 	var tag models.Tag
 	if err := c.ShouldBindJSON(&tag); err == nil {
-		//if err := tag.Validate(); err != nil {
-		//	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		//	return
-		//}
-
 		//判断表中是否存在
 		if ctrl.DB.Where("name = ?", tag.Name).First(&tag).RowsAffected > 0 {
-			c.JSON(http.StatusConflict, gin.H{"message": "Tag already exists"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "标签已存在"))
 			return
 		}
+
 		result := ctrl.DB.Create(&tag)
 		if result.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+			response.WriteJSON(c, response.NewResponse(2, nil, "创建标签失败"))
 		} else {
-			c.JSON(http.StatusCreated, gin.H{"message": "Tag created", "tag": tag})
+			response.WriteJSON(c, response.NewResponse(0, tag, "标签创建成功"))
 		}
 	} else {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的输入"))
 	}
 }
 
@@ -62,9 +59,9 @@ func (ctrl *TagController) GetTags(c *gin.Context) {
 	var tags []models.Tag
 	result := ctrl.DB.Find(&tags)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "获取标签列表失败"))
 	} else {
-		c.JSON(http.StatusOK, gin.H{"tags": tags})
+		response.WriteJSON(c, response.NewResponse(0, tags, "获取标签列表成功"))
 	}
 }
 
@@ -75,13 +72,13 @@ func (ctrl *TagController) GetTag(c *gin.Context) {
 	result := ctrl.DB.Where("id = ?", tagID).First(&tag)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Tag not found"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到"))
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+			response.WriteJSON(c, response.NewResponse(2, nil, "获取标签失败"))
 		}
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"tag": tag})
+	response.WriteJSON(c, response.NewResponse(0, tag, "获取标签成功"))
 }
 
 // UpdateTag 更新标签
@@ -91,25 +88,21 @@ func (ctrl *TagController) UpdateTag(c *gin.Context) {
 	result := ctrl.DB.Where("id = ?", tagID).First(&tag)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Tag not found"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "更新标签失败"))
 		return
 	}
 	if err := c.ShouldBindJSON(&tag); err == nil {
-		//if err := tag.Validate(); err != nil {
-		//	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		//	return
-		//}
 		result = ctrl.DB.Save(&tag)
 		if result.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+			response.WriteJSON(c, response.NewResponse(2, nil, "更新标签失败"))
 		} else {
-			c.JSON(http.StatusOK, gin.H{"message": "Tag updated", "tag": tag})
+			response.WriteJSON(c, response.NewResponse(0, tag, "标签更新成功"))
 		}
 	} else {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "无效的输入"))
 	}
 }
 
@@ -120,45 +113,22 @@ func (ctrl *TagController) DeleteTag(c *gin.Context) {
 	result := ctrl.DB.Where("id = ?", tagID).First(&tag)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Tag not found"})
+			response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "删除标签时数据库错误"))
 		return
 	}
 
-	//查询标签下的日记id
-	var diaryTags []models.DiaryTags
-	tx := ctrl.DB.Find(&diaryTags, "tag_id = ?", tagID)
-	if tx.Error != nil { //删除标签下的日记失败
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete diary under the tag"})
-		return
-	}
-
-	//根据日记id软删除日记
-	var err2 error
-	for _, diaryTag := range diaryTags {
-		var diary models.Diary
-		result2 := ctrl.DB.Where("id = ? AND deleted_at IS NULL", diaryTag.DiaryID).First(&diary)
-		if result2.Error != nil {
-			err2 = result2.Error
-			continue
-		}
-		if err := ctrl.DB.Delete(&models.Diary{}, diaryTag.DiaryID).Error; err != nil {
-			err2 = err
-		}
-	}
-	if err2 != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete diary under the tag"})
-		return
-	}
-
-	result = ctrl.DB.Delete(&tag)
+	// 执行软删除
+	tag.DeletedAt.Time = time.Now() // 设置 DeletedAt 字段为当前时间
+	tag.DeletedAt.Valid = true      // 标记为有效，表示记录被软删除
+	result = ctrl.DB.Save(&tag)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		response.WriteJSON(c, response.NewResponse(2, nil, "删除标签失败"))
 	} else if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Tag not found or already deleted"})
+		response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到或已被删除"))
 	} else {
-		c.JSON(http.StatusOK, gin.H{"message": "Tag deleted"})
+		response.WriteJSON(c, response.NewResponse(0, nil, "标签删除成功"))
 	}
 }

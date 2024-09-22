@@ -8,10 +8,10 @@ import (
 // User 用户模型
 type User struct {
 	gorm.Model
-	PhoneNumber string `gorm:"unique;not null"`
-	Password    string `gorm:"not null"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	PhoneNumber string    `gorm:"unique;not null"`
+	Password    string    `gorm:"not null"`
+	CreatedAt   time.Time `json:"created_at,omitempty"` // 创建时间，使用 omitempty 标签
+	UpdatedAt   time.Time `json:"updated_at,omitempty"` // 更新时间，使用 omitempty 标签
 	// 假删除字段
 	//IsDeleted bool `gorm:"default:false"`
 }
@@ -30,5 +30,3 @@ func (u *User) AfterCreate(tx *gorm.DB) error {
 	// 在这里添加创建用户之后的逻辑
 	return nil
 }
-
-// 其他 GORM 钩子...

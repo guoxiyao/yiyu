@@ -46,3 +46,13 @@ func VerifyToken(tokenString string) (*CustomClaims, error) {
 
 	return nil, errors.New("invalid token")
 }
+
+// DecodeUser 解析JWT令牌中的用户信息
+func DecodeUser(tokenString string) (uint, string, error) {
+	claims, err := VerifyToken(tokenString)
+	if err != nil {
+		return 0, "", err
+	}
+
+	return claims.UserID, claims.PhoneNumber, nil
+}

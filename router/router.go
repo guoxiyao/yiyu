@@ -1,4 +1,3 @@
-// router.go
 package router
 
 import (
@@ -16,9 +15,6 @@ type AppRouter struct {
 // NewAppRouter 初始化并返回 AppRouter 实例
 func NewAppRouter(db *gorm.DB) *AppRouter {
 	r := gin.Default() // 创建 Gin 路由器实例
-
-	// 初始化中间件
-	// r.Use(middleware.Logger())
 
 	// 初始化控制器并设置路由
 	controllers.NewDiaryController(db).Routes(r)
@@ -40,4 +36,8 @@ func NewAppRouter(db *gorm.DB) *AppRouter {
 // Run 启动 Gin 服务器
 func (ar *AppRouter) Run(port string) error {
 	return ar.Engine.Run(port) // 使用 Gin 路由器的 Run 方法
+}
+
+func (ar *AppRouter) Use(handlerFunc gin.HandlerFunc) {
+
 }
