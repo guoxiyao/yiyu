@@ -98,15 +98,15 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 	userID := userIDAny.(uint)
 	// QueryParams 用于绑定查询参数的结构体
 	type QueryParams struct {
-		Page      int
-		PageSize  int
-		SortField string
-		SortBy    string
-		QueryType string
-		TagID     string
-		Content   string
-		StartTime string
-		EndTime   string
+		Page      int    `form:"page"`
+		PageSize  int    `form:"pageSize"`
+		SortField string `form:"sortField"`
+		SortBy    string `form:"sortBy"`
+		QueryType string `form:"queryType"`
+		TagID     string `form:"tagId"` // 注意：tagId 和 TagID 不一致
+		Content   string `form:"content"`
+		StartTime string `form:"startTime"`
+		EndTime   string `form:"endTime"`
 	}
 
 	// 绑定查询参数
@@ -125,15 +125,6 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 		return
 	}
 
-	// 验证排序参数
-	if queryParams.SortField != "created_at" && queryParams.SortField != "updated_at" {
-		response.WriteJSON(c, response.NewResponse(1, nil, "无效的排序字段"))
-		return
-	}
-	if queryParams.SortBy != "ASC" && queryParams.SortBy != "DESC" {
-		response.WriteJSON(c, response.NewResponse(1, nil, "无效的排序顺序"))
-		return
-	}
 	// 构建基础查询
 	var result *gorm.DB
 	result = ctrl.DB.Model(&models.Diary{}).Where("user_id = ?", userID)
@@ -178,13 +169,32 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 	offset := (queryParams.Page - 1) * queryParams.PageSize
 	var diaries []models.Diary
 	var count int64
-	result = result.Preload("Tags").Count(&count).Offset(offset).Limit(queryParams.PageSize).Order(queryParams.SortField + " " + queryParams.SortBy).Find(&diaries)
-	if result.Error != nil {
+	var err error
+
+	// 先获取总数
+	err = result.Preload("Tags").Count(&count).Error
+	if err != nil {
 		response.WriteJSON(c, response.NewResponse(2, nil, "获取日记列表失败"))
 	} else {
 		// 计算总页数
 		totalPages := int(math.Ceil(float64(count) / float64(queryParams.PageSize)))
-		response.WriteJSON(c, response.NewResponse(0, gin.H{"diaries": diaries, "currentPage": queryParams.Page, "totalPages": totalPages}, "获取日记列表成功"))
+
+		// 应用分页
+		result = result.Preload("Tags").Offset(offset).Limit(queryParams.PageSize)
+
+		// 应用排序
+		if queryParams.SortField != "" && queryParams.SortBy != "" {
+			sortStr := queryParams.SortField + " " + queryParams.SortBy
+			result = result.Order(sortStr)
+		}
+
+		// 获取日记列表
+		err = result.Find(&diaries).Error
+		if err != nil {
+			response.WriteJSON(c, response.NewResponse(2, nil, "获取日记列表失败"))
+		} else {
+			response.WriteJSON(c, response.NewResponse(0, gin.H{"diaries": response.DiaryResponse{}, "currentPage": queryParams.Page, "totalPages": totalPages}, "获取日记列表成功"))
+		}
 	}
 }
 
