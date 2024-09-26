@@ -103,7 +103,7 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 		SortField string `form:"sortField"`
 		SortBy    string `form:"sortBy"`
 		QueryType string `form:"queryType"`
-		TagID     string `form:"tagId"` // 注意：tagId 和 TagID 不一致
+		TagID     string `form:"tagId"`
 		Content   string `form:"content"`
 		StartTime string `form:"startTime"`
 		EndTime   string `form:"endTime"`
@@ -193,7 +193,18 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 		if err != nil {
 			response.WriteJSON(c, response.NewResponse(2, nil, "获取日记列表失败"))
 		} else {
-			response.WriteJSON(c, response.NewResponse(0, gin.H{"diaries": response.DiaryResponse{}, "currentPage": queryParams.Page, "totalPages": totalPages}, "获取日记列表成功"))
+
+			diaryResponses := make([]response.DiaryResponse, len(diaries))
+			for i, diary := range diaries {
+				diaryResponses[i] = response.DiaryResponse{
+					ID:        diary.ID,
+					Content:   diary.Content,
+					CreatedAt: diary.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+					UpdatedAt: diary.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				}
+			}
+
+			response.WriteJSON(c, response.NewResponse(0, gin.H{"diaries": diaryResponses, "currentPage": queryParams.Page, "totalPages": totalPages}, "获取日记列表成功"))
 		}
 	}
 }

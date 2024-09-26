@@ -8,8 +8,6 @@ import (
 )
 
 func main() {
-	//实例化gin引擎
-	//r := gin.New()
 
 	// 加载配置
 	cfg, err := config.LoadConfig()

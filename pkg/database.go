@@ -37,12 +37,16 @@ func Connect(dbConfig *config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// 这里可以添加自动迁移代码，例如 db.Migrate(...)
-	// db.AutoMigrate(yourModelTypes...)
-
 	// 设置连接池参数
-	//db.Interrupt()
 	sqlDB, err := db.DB()
+
+	if err != nil {
+		log.Fatalf("failed to get raw database connection: %v", err)
+	}
+
+	stats := sqlDB.Stats()
+	log.Printf("Current Open Connections: %d\n", stats.OpenConnections) // 当前打开的连接数
+
 	if err != nil {
 		return nil, err
 	}
@@ -50,9 +54,5 @@ func Connect(dbConfig *config.DatabaseConfig) (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(10 * time.Minute)
 
-	//db.Continue()
-
 	return db, nil
 }
-
-// pkg/database.go
