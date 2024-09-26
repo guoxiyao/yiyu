@@ -12,7 +12,6 @@ type DatabaseConfig struct {
 	User     string
 	Password string
 	Name     string
-	//Database *DatabaseConfig
 }
 
 // LoadConfig 加载配置
