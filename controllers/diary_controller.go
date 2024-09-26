@@ -57,6 +57,7 @@ func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
 		response.WriteJSON(c, response.NewResponse(1, nil, "日记内容不能为空"))
 		return
 	}
+	diary.Content = diaryDto.Content
 
 	// 检查 user_id 是否在 users 表中存在
 	var user models.User
@@ -68,13 +69,13 @@ func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
 
 	// 查找标签,未创建的接口返回错误
 	var tags []models.Tag
-	for _, tag := range diary.Tags {
-		var tag1 models.Tag
-		if err := ctrl.DB.First(&tag1, "name = ?", tag.Name).Error; err != nil {
+	for _, tagId := range diaryDto.TagIds {
+		var tag models.Tag
+		if err := ctrl.DB.First(&tag, "id = ?", tagId).Error; err != nil {
 			response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到"))
 			return
 		}
-		tags = append(tags, tag1)
+		tags = append(tags, tag)
 	}
 
 	diary.Tags = tags
