@@ -17,3 +17,13 @@
    2. `git commit -m '日志信息'`
    3. `git push origin dev_zfr`;
 6. 在GitHub的Pull Requests中手动将xxx_dev合并到main分支：点击合并请求合并分支到main，一路提交即可
+
+### 前端对接
+
+- 对入参、出参的 `json` 实体进行数据转换(dto vo)，以适配前端需求。
+- 封装统一返回类组件 HTTP状态码
+- 封装分页组件
+
+把上述规范写一个文档（MarkDown）进行说明。
+
+

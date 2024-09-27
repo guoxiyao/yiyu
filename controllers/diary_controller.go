@@ -48,7 +48,8 @@ func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
 
 	// 绑定请求中的 JSON 数据到 diary 变量中
 	if err := c.ShouldBindJSON(&diaryDto); err != nil {
-		response.WriteJSON(c, response.NewResponse(1, nil, "无效的输入"))
+		response.WriteJSON(c, response.UserErrorNoMsgResponse("无效的输入"))
+		//response.WriteBadRequestJSON(c, "无效的输入")
 		return
 	}
 
@@ -90,6 +91,7 @@ func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
 		response.WriteJSON(c, response.NewResponse(2, nil, "创建日记失败"))
 		return
 	}
+	diary.User = user
 
 	// 如果创建成功，返回创建的日记和 HTTP 201 状态码
 	response.WriteJSON(c, response.NewResponse(0, diary, "日记创建成功"))
@@ -168,7 +170,14 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 		result = result.Where("created_at <= ?", endTime)
 	}
 
+	// 应用排序
+	if queryParams.SortField != "" && queryParams.SortBy != "" {
+		sortStr := queryParams.SortField + " " + queryParams.SortBy
+		result = result.Order(sortStr)
+	}
+
 	// 应用分页和排序
+	// TODO: 分页组件
 	offset := (queryParams.Page - 1) * queryParams.PageSize
 	var diaries []models.Diary
 	var count int64
@@ -185,28 +194,15 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 		// 应用分页
 		result = result.Preload("Tags").Offset(offset).Limit(queryParams.PageSize)
 
-		// 应用排序
-		if queryParams.SortField != "" && queryParams.SortBy != "" {
-			sortStr := queryParams.SortField + " " + queryParams.SortBy
-			result = result.Order(sortStr)
-		}
-
 		// 获取日记列表
 		err = result.Find(&diaries).Error
 		if err != nil {
 			response.WriteJSON(c, response.NewResponse(2, nil, "获取日记列表失败"))
 		} else {
-
-			diaryResponses := make([]response.DiaryResponse, len(diaries))
+			diaryResponses := make([]response.DiaryVo, len(diaries))
 			for i, diary := range diaries {
-				diaryResponses[i] = response.DiaryResponse{
-					ID:        diary.ID,
-					Content:   diary.Content,
-					CreatedAt: diary.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-					UpdatedAt: diary.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-				}
+				diaryResponses[i].Copy(diary)
 			}
-
 			response.WriteJSON(c, response.NewResponse(0, gin.H{"diaries": diaryResponses, "currentPage": queryParams.Page, "totalPages": totalPages}, "获取日记列表成功"))
 		}
 	}
