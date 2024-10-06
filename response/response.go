@@ -3,7 +3,6 @@ package response
 
 import (
 	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 type ApiResponse struct {
@@ -23,26 +22,27 @@ func NewResponse(code int, data interface{}, message string) ApiResponse {
 
 // TODO: 统一返回类组件
 
+// SuccessResponse 创建一个表示成功的响应。
 func SuccessResponse(data interface{}) ApiResponse {
 	return NewResponse(200, data, "success")
 }
 
+// UserErrorResponse 创建一个表示用户错误的响应。
 func UserErrorResponse(data interface{}, message string) ApiResponse {
 	return NewResponse(400, data, message)
 }
+
+// UserErrorNoMsgResponse 创建一个表示用户错误的响应，不包含额外的数据。
 func UserErrorNoMsgResponse(message string) ApiResponse {
 	return NewResponse(400, nil, message)
 }
 
+// InternalErrorResponse 创建一个表示服务器内部错误的响应。
 func InternalErrorResponse(data interface{}, message string) ApiResponse {
 	return NewResponse(500, data, message)
 }
 
 // WriteJSON 将 ApiResponse 写入 HTTP 响应
 func WriteJSON(c *gin.Context, response ApiResponse) {
-	c.JSON(http.StatusOK, response)
-}
-
-func WriteBadRequestJSON(c *gin.Context, message string) {
-	c.JSON(http.StatusBadRequest, UserErrorNoMsgResponse(message))
+	c.JSON(response.Code, response)
 }

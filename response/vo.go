@@ -17,12 +17,21 @@ type DiaryVo struct {
 	Tags      []TagVo `json:"tags,omitempty"`
 }
 
-func (dairyVo *DiaryVo) Copy(diary models.Diary) {
-	dairyVo = &DiaryVo{
-		ID:        diary.ID,
-		Content:   diary.Content,
-		CreatedAt: diary.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: diary.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+// Copy 赋值
+func (diaryVo *DiaryVo) Copy(diary models.Diary) {
+	diaryVo.ID = diary.ID
+	diaryVo.CreatedAt = diary.CreatedAt.Format("2006-01-02 15:04:05")
+	diaryVo.UpdatedAt = diary.UpdatedAt.Format("2006-01-02 15:04:05")
+	diaryVo.UserID = diary.UserID
+	diaryVo.Content = diary.Content
+	diaryVo.Tags = make([]TagVo, len(diary.Tags))
+	for i, tag := range diary.Tags {
+		diaryVo.Tags[i] = TagVo{
+			ID:        tag.ID,
+			CreatedAt: tag.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt: tag.UpdatedAt.Format("2006-01-02 15:04:05"),
+			Name:      tag.Name,
+		}
 	}
 }
 
@@ -46,4 +55,12 @@ type TagVo struct {
 	CreatedAt string `json:"createdAt,omitempty"`
 	UpdatedAt string `json:"updatedAt,omitempty"`
 	Name      string `json:"name"`
+}
+
+// Copy 赋值
+func (tagVo *TagVo) Copy(tag models.Tag) {
+	tagVo.ID = tag.ID
+	tagVo.CreatedAt = tag.CreatedAt.Format("2006-01-02 15:04:05")
+	tagVo.UpdatedAt = tag.UpdatedAt.Format("2006-01-02 15:04:05")
+	tagVo.Name = tag.Name
 }
