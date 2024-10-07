@@ -1,30 +1,27 @@
 package service
 
 import (
+	"awesomeProject1/pkg/models"
 	"gorm.io/gorm"
 	"math"
 )
 
 type PaginationResult struct {
-	Records    interface{} // 记录数据
-	Total      int64       // 总记录数
-	Page       int         // 当前页码
-	PageSize   int         // 每页记录数
-	TotalPages int         // 总页数
+	Records    []models.Diary // 记录数据
+	Total      int64          // 总记录数
+	Page       int            // 当前页码
+	PageSize   int            // 每页记录数
+	TotalPages int            // 总页数
 }
 
-func Paginate(db *gorm.DB, page, pageSize int, model interface{}, sortField string, sortBy string) (*PaginationResult, error) {
+func Paginate(db *gorm.DB, page, pageSize int, model interface{}) (*PaginationResult, error) {
 	var count int64
 	var err error
 
 	// 构建基础查询
 	query := db.Model(model)
 
-	// 应用排序条件
-	if sortField != "" && sortBy != "" {
-		query = query.Order(sortField + " " + sortBy)
-	}
-
+	// 获取总数
 	err = query.Count(&count).Error
 	if err != nil {
 		return nil, err
@@ -35,7 +32,7 @@ func Paginate(db *gorm.DB, page, pageSize int, model interface{}, sortField stri
 	offset := (page - 1) * pageSize
 
 	// 执行分页查询
-	var records []interface{}
+	var records []models.Diary
 	err = query.Offset(offset).Limit(pageSize).Find(&records).Error
 	if err != nil {
 		return nil, err

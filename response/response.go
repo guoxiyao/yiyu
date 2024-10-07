@@ -1,4 +1,3 @@
-// response.go
 package response
 
 import (

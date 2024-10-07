@@ -9,7 +9,6 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"net/http"
 	"time"
 )
 
@@ -39,61 +38,47 @@ func (ctrl *DiaryController) Routes(r *gin.Engine) {
 
 // CreateDiary 创建新的日记
 func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
-	//用户id
-	userIDAny, _ := c.Get("user_id")
-	userID := userIDAny.(uint)
-	var diary models.Diary
 	var diaryDto request.DiaryDto
-
-	// 绑定请求中的 JSON 数据到 diary 变量中
+	// 绑定请求中的 JSON 数据到 diaryDto 变量中
 	if err := c.ShouldBindJSON(&diaryDto); err != nil {
-		response.WriteJSON(c, response.UserErrorNoMsgResponse("无效的输入"))
-		//response.WriteBadRequestJSON(c, "无效的输入")
+		response.WriteJSON(c, response.UserErrorResponse(nil, "无效的输入"))
 		return
 	}
-
 	// 检查日记内容是否为空
 	if diaryDto.Content == "" {
-		response.WriteJSON(c, response.NewResponse(1, nil, "日记内容不能为空"))
+		response.WriteJSON(c, response.UserErrorResponse(nil, "日记内容不能为空"))
 		return
 	}
-	diary.Content = diaryDto.Content
-
-	// 检查 user_id 是否在 users 表中存在
-	var user models.User
-	if err := ctrl.DB.Where("id = ?", userID).First(&user).Error; err != nil {
-		response.WriteJSON(c, response.NewResponse(1, nil, "用户未找到"))
-		return
-	}
-	diary.UserID = userID
-
 	// 查找标签,未创建的接口返回错误
 	var tags []models.Tag
 	for _, tagId := range diaryDto.TagIds {
 		var tag models.Tag
 		if err := ctrl.DB.First(&tag, "id = ?", tagId).Error; err != nil {
-			response.WriteJSON(c, response.NewResponse(1, nil, "标签未找到"))
+			response.WriteJSON(c, response.UserErrorResponse(nil, "标签未找到"))
 			return
 		}
 		tags = append(tags, tag)
 	}
-
-	diary.Tags = tags
-
+	// 获取当前用户ID
+	userIDAny, _ := c.Get("user_id")
+	userID := userIDAny.(uint)
+	// 创建日记记录
+	diary := models.Diary{
+		Content: diaryDto.Content,
+		Tags:    tags,
+		UserID:  userID, // 设置外键
+	}
 	// 使用 GORM 创建日记记录
 	result := ctrl.DB.Create(&diary)
-
 	// 检查是否有错误发生
 	if result.Error != nil {
-		// 如果有错误，返回错误信息和 HTTP 500 状态码
-
-		response.WriteJSON(c, response.NewResponse(2, nil, "创建日记失败"))
+		response.WriteJSON(c, response.InternalErrorResponse(nil, "创建日记失败"))
 		return
 	}
-	diary.User = user
-
+	// 转换为 DTO
+	diaryDto = request.DiaryToDto(diary)
 	// 如果创建成功，返回创建的日记和 HTTP 201 状态码
-	response.WriteJSON(c, response.NewResponse(0, diary, "日记创建成功"))
+	response.WriteJSON(c, response.SuccessResponse(diaryDto))
 }
 
 // GetDiaries 获取用户的日记列表
@@ -110,32 +95,33 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 		SortBy    string `form:"sortBy"`
 	}
 	if err := c.ShouldBindQuery(&queryParams); err != nil {
-		response.WriteJSON(c, response.NewResponse(http.StatusBadRequest, nil, "无效的查询参数"))
+		response.WriteJSON(c, response.UserErrorNoMsgResponse("无效的查询参数"))
 		return
 	}
 
+	// 设置默认排序字段和排序方式
+	if queryParams.SortField == "" {
+		queryParams.SortField = "created_at" // 假设日记模型中创建时间字段名为created_at
+	}
+	if queryParams.SortBy == "" {
+		queryParams.SortBy = "desc" // 设置默认排序方式为降序
+	}
+
 	// 调用分页服务
-	paginationResult, err := service.Paginate(ctrl.DB, queryParams.Page, queryParams.PageSize, &models.Diary{}, queryParams.SortField, queryParams.SortBy)
+	paginationResult, err := service.Paginate(ctrl.DB, queryParams.Page, queryParams.PageSize, &models.Diary{})
 	if err != nil {
-		response.WriteJSON(c, response.NewResponse(http.StatusInternalServerError, nil, "获取日记列表失败"))
+		response.WriteJSON(c, response.InternalErrorResponse(nil, "获取日记列表失败"))
 		return
 	}
 
 	// 转换日记数据为DiaryVo
-	diaryVos := make([]response.DiaryVo, len(paginationResult.Records.([]models.Diary)))
-	for i, diary := range paginationResult.Records.([]models.Diary) {
+	diaryVos := make([]response.DiaryVo, len(paginationResult.Records))
+	for i, diary := range paginationResult.Records {
 		diaryVos[i].Copy(diary)
 	}
 
-	// 调用响应服务发送分页响应
-	response.PageResponse(c, paginationResult, func(model interface{}) []response.DiaryVo {
-		records, _ := model.([]models.Diary)
-		diaryVos := make([]response.DiaryVo, len(records))
-		for i, diary := range records {
-			diaryVos[i].Copy(diary)
-		}
-		return diaryVos
-	})
+	// 返回分页响应
+	response.WriteJSON(c, response.SuccessResponse(diaryVos))
 }
 
 // UpdateDiary 更新日记内容

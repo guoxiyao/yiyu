@@ -23,7 +23,7 @@ type UserDto struct {
 	PhoneNumber string `json:"phoneNumber"`
 }
 
-// 将Diary模型转换为DiaryDto
+// DiaryToDto 将Diary模型转换为DiaryDto
 func DiaryToDto(diary models.Diary) DiaryDto {
 	var tagIds []uint
 	for _, tag := range diary.Tags {
@@ -35,7 +35,7 @@ func DiaryToDto(diary models.Diary) DiaryDto {
 	}
 }
 
-// 将Tag模型转换为TagDto
+// TagToDto 将Tag模型转换为TagDto
 func TagToDto(tag models.Tag) TagDto {
 	return TagDto{
 		ID:   tag.ID,
@@ -43,7 +43,7 @@ func TagToDto(tag models.Tag) TagDto {
 	}
 }
 
-// 将User模型转换为UserDto
+// UserToDto 将User模型转换为UserDto
 func UserToDto(user models.User) UserDto {
 	return UserDto{
 		ID:          user.ID,
