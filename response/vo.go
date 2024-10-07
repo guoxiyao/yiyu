@@ -35,6 +35,23 @@ func (diaryVo *DiaryVo) Copy(diary models.Diary) {
 	}
 }
 
+type PaginatedDiaryVo struct {
+	Data           []DiaryVo `json:"data"`
+	PaginationData `json:"pagination"`
+}
+
+type PaginationData struct {
+	Page       int   `json:"page"`
+	PageSize   int   `json:"pageSize"`
+	TotalCount int64 `json:"totalCount"`
+	TotalPages int   `json:"totalPages"`
+}
+
+func (pdv *PaginatedDiaryVo) Copy(diaryVos []DiaryVo, pagination PaginationData) {
+	pdv.Data = diaryVos
+	pdv.PaginationData = pagination
+}
+
 // UserVo 用于API响应的用户信息
 type UserVo struct {
 	ID          uint   `json:"id"`

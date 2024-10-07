@@ -14,12 +14,16 @@ type PaginationResult struct {
 	TotalPages int            // 总页数
 }
 
-func Paginate(db *gorm.DB, page, pageSize int, model interface{}) (*PaginationResult, error) {
+// QueryModifier 用于修改查询
+type QueryModifier func(*gorm.DB) *gorm.DB
+
+// Paginate 通用的分页查询方法
+func Paginate(db *gorm.DB, page, pageSize int, model interface{}, modifier QueryModifier) (*PaginationResult, error) {
 	var count int64
 	var err error
 
-	// 构建基础查询
-	query := db.Model(model)
+	//应用modifier函数来修改查询
+	query := modifier(db.Model(model))
 
 	// 获取总数
 	err = query.Count(&count).Error

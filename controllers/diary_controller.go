@@ -77,7 +77,7 @@ func (ctrl *DiaryController) CreateDiary(c *gin.Context) {
 	}
 	// 转换为 DTO
 	diaryDto = request.DiaryToDto(diary)
-	// 如果创建成功，返回创建的日记和 HTTP 201 状态码
+	//创建成功返回响应
 	response.WriteJSON(c, response.SuccessResponse(diaryDto))
 }
 
@@ -99,16 +99,32 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 		return
 	}
 
-	// 设置默认排序字段和排序方式
-	if queryParams.SortField == "" {
-		queryParams.SortField = "created_at" // 假设日记模型中创建时间字段名为created_at
-	}
-	if queryParams.SortBy == "" {
-		queryParams.SortBy = "desc" // 设置默认排序方式为降序
+	// 定义 modifier 函数
+	modifier := func(db *gorm.DB) *gorm.DB {
+		query := db
+		if queryParams.TagID != "" {
+			query = query.Where("tag_id = ?", queryParams.TagID)
+		}
+		if queryParams.Content != "" {
+			query = query.Where("content LIKE ?", "%"+queryParams.Content+"%")
+		}
+		if queryParams.StartTime != "" {
+			query = query.Where("created_at >= ?", queryParams.StartTime)
+		}
+		if queryParams.EndTime != "" {
+			query = query.Where("created_at <= ?", queryParams.EndTime)
+		}
+		// 设置默认排序字段为创建时间，排序方式为降序
+		if queryParams.SortField == "" || queryParams.SortBy == "" {
+			query = query.Order("created_at desc")
+		} else {
+			query = query.Order(queryParams.SortField + " " + queryParams.SortBy)
+		}
+		return query
 	}
 
 	// 调用分页服务
-	paginationResult, err := service.Paginate(ctrl.DB, queryParams.Page, queryParams.PageSize, &models.Diary{})
+	paginationResult, err := service.Paginate(ctrl.DB, queryParams.Page, queryParams.PageSize, &models.Diary{}, modifier)
 	if err != nil {
 		response.WriteJSON(c, response.InternalErrorResponse(nil, "获取日记列表失败"))
 		return
@@ -119,9 +135,17 @@ func (ctrl *DiaryController) GetDiaries(c *gin.Context) {
 	for i, diary := range paginationResult.Records {
 		diaryVos[i].Copy(diary)
 	}
+	// 创建包含分页信息的响应VO
+	paginatedDiaryVo := response.PaginatedDiaryVo{}
+	paginatedDiaryVo.Copy(diaryVos, response.PaginationData{
+		Page:       paginationResult.Page,
+		PageSize:   paginationResult.PageSize,
+		TotalCount: paginationResult.Total,
+		TotalPages: paginationResult.TotalPages,
+	})
 
 	// 返回分页响应
-	response.WriteJSON(c, response.SuccessResponse(diaryVos))
+	response.WriteJSON(c, response.NewResponse(200, paginatedDiaryVo, "success"))
 }
 
 // UpdateDiary 更新日记内容
